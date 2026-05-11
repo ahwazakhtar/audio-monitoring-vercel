@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: audio-monitoring-server
+    env: node
+    region: oregon
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CSV_PATH
+        value: ../EGRA_EGMA_Combine_WIDE.csv
+      - key: GOOGLE_SHEET_ID
+        value: 1N1POd9dhcXy3f-u_UZggNsLzE3hlObK4Y7JzFJQANQI
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        value: 19tfSEeBaOchNwSB2VNZd9s9PmEpDAIkG
+      - key: GOOGLE_SERVICE_ACCOUNT_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: USERS
+        sync: false
+      - key: ALLOWED_ORIGIN
+        sync: false
