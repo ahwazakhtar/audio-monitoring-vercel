@@ -2,7 +2,7 @@ import React from 'react'
 
 function VerdictButtons({ verdict, onChange }) {
   return (
-    <div className="flex gap-1.5">
+    <div className="flex gap-1.5 flex-wrap">
       <button
         type="button"
         onClick={() => onChange(verdict === 'correct' ? null : 'correct')}
@@ -25,6 +25,17 @@ function VerdictButtons({ verdict, onChange }) {
       >
         ✗ Incorrect
       </button>
+      <button
+        type="button"
+        onClick={() => onChange(verdict === 'unknown' ? null : 'unknown')}
+        className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${
+          verdict === 'unknown'
+            ? 'bg-slate-400 border-slate-500 text-white'
+            : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100 hover:border-slate-400'
+        }`}
+      >
+        ? Cannot Determine
+      </button>
     </div>
   )
 }
@@ -41,6 +52,12 @@ function ComplianceBadge({ correct, total }) {
     </span>
   )
 }
+
+const PROTOCOL_FIELDS = [
+  { key: '__protocol_followed', label: 'Followed protocol' },
+  { key: '__protocol_prompted', label: 'Interviewer prompted student' },
+  { key: '__protocol_gap', label: 'Gap in audio' },
+]
 
 export default function SectionVerifier({
   sectionKey,
@@ -62,6 +79,14 @@ export default function SectionVerifier({
 
   function handleFieldComment(fieldKey, value) {
     onVerdictsChange({ ...verdicts, [`__comment_${fieldKey}`]: value })
+  }
+
+  function handleProtocolCheck(fieldKey, checked) {
+    onVerdictsChange({ ...verdicts, [fieldKey]: checked })
+  }
+
+  function handleProtocolOther(value) {
+    onVerdictsChange({ ...verdicts, __protocol_other: value })
   }
 
   return (
@@ -90,7 +115,8 @@ export default function SectionVerifier({
               key={field.key}
               className={`px-4 py-3 transition-colors ${
                 verdict === 'correct' ? 'bg-green-50' :
-                verdict === 'incorrect' ? 'bg-red-50' : ''
+                verdict === 'incorrect' ? 'bg-red-50' :
+                verdict === 'unknown' ? 'bg-slate-50' : ''
               }`}
             >
               <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -126,6 +152,34 @@ export default function SectionVerifier({
             </div>
           )
         })}
+      </div>
+
+      {/* Protocol observations */}
+      <div className="border-t border-slate-200 px-4 py-3 bg-slate-50">
+        <div className="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Protocol Observations</div>
+        <div className="space-y-2">
+          {PROTOCOL_FIELDS.map(({ key, label: pLabel }) => (
+            <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!verdicts[key]}
+                onChange={e => handleProtocolCheck(key, e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
+              />
+              <span className="text-sm text-slate-700">{pLabel}</span>
+            </label>
+          ))}
+          <div className="flex items-start gap-2 pt-0.5">
+            <span className="text-sm text-slate-700 whitespace-nowrap pt-1">Other issue:</span>
+            <input
+              type="text"
+              value={verdicts.__protocol_other || ''}
+              onChange={e => handleProtocolOther(e.target.value)}
+              placeholder="Describe..."
+              className="flex-1 text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Section comment */}
