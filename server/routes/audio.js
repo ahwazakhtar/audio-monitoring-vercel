@@ -32,7 +32,7 @@ router.get('/files', authMiddleware, async (req, res) => {
       }
     }
 
-    const completedSet = new Set(sessionState.completed || []);
+    const completedMap = new Map((sessionState.completed || []).map((r) => [r.unique_id_calc, r]));
     const claimedSet = new Set((sessionState.claimed || []).map((c) => c.unique_id_calc));
 
     // Build a lookup: audio_filename_segment -> unique_id_calc
@@ -61,9 +61,10 @@ router.get('/files', authMiddleware, async (req, res) => {
       }
 
       const obs = unique_id_calc ? obsMap.get(unique_id_calc) : null;
+      const completedReview = unique_id_calc ? completedMap.get(unique_id_calc) : null;
 
       const status = unique_id_calc
-        ? completedSet.has(unique_id_calc) ? 'complete'
+        ? completedReview ? 'complete'
           : draftMap.has(unique_id_calc) ? 'draft'
           : claimedSet.has(unique_id_calc) ? 'claimed'
           : 'available'
@@ -79,6 +80,8 @@ router.get('/files', authMiddleware, async (req, res) => {
         size: file.size,
         status,
         draft_data: unique_id_calc ? (draftMap.get(unique_id_calc) || null) : null,
+        reviewer: completedReview ? completedReview.reviewer : null,
+        review_timestamp: completedReview ? completedReview.review_timestamp : null,
       };
     });
 

@@ -88,6 +88,10 @@ export default function Dashboard() {
   const [observations, setObservations] = useState([])
   const [currentUser, setCurrentUser] = useState(null)
   const [claimingId, setClaimingId] = useState(null)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterReviewer, setFilterReviewer] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
 
   const username = localStorage.getItem('username') || ''
 
@@ -105,14 +109,21 @@ export default function Dashboard() {
       setObservations(obsRes.data || [])
 
       // Merge session state into each audio file
-      const completedSet = new Set(session.completed || [])
+      const completedMap = new Map((session.completed || []).map(c => [c.unique_id_calc, c]))
       const claimedMap = new Map((session.claimed || []).map(c => [c.unique_id_calc, c]))
       const draftMap = new Map((session.drafts || []).map(d => [d.unique_id_calc, d]))
 
       const enriched = (filesRes.data || []).map(file => {
         const uid = file.unique_id_calc
         if (!uid) return { ...file, reviewed: false, claimed_by: null }
-        if (completedSet.has(uid)) return { ...file, reviewed: true, claimed_by: null }
+        const completedReview = completedMap.get(uid)
+        if (completedReview) return {
+          ...file,
+          reviewed: true,
+          claimed_by: null,
+          reviewer: file.reviewer || completedReview.reviewer,
+          review_timestamp: file.review_timestamp || completedReview.review_timestamp,
+        }
         const claim = claimedMap.get(uid) || draftMap.get(uid)
         if (claim) return { ...file, reviewed: false, claimed_by: claim.reviewer, claimed_by_username: claim.reviewer }
         return { ...file, reviewed: false, claimed_by: null }
@@ -163,6 +174,28 @@ export default function Dashboard() {
     if (claimedUsername === username) return 'my_draft'
     return 'in_review'
   }
+
+  // Unique reviewers across all files (completed reviewer + in-progress claimant)
+  const reviewers = [...new Set(
+    audioFiles.map(f => f.reviewer || f.claimed_by_username || f.claimed_by).filter(Boolean)
+  )].sort()
+
+  // Apply filters
+  const filteredFiles = audioFiles.filter(file => {
+    const status = getFileStatus(file)
+    if (filterStatus && status !== filterStatus) return false
+    const fileReviewer = file.reviewer || file.claimed_by_username || file.claimed_by || ''
+    if (filterReviewer && fileReviewer !== filterReviewer) return false
+    if (filterDateFrom || filterDateTo) {
+      if (!file.review_timestamp) return false
+      const d = new Date(file.review_timestamp)
+      if (filterDateFrom && d < new Date(filterDateFrom)) return false
+      if (filterDateTo && d > new Date(filterDateTo + 'T23:59:59')) return false
+    }
+    return true
+  })
+
+  const hasActiveFilters = filterStatus || filterReviewer || filterDateFrom || filterDateTo
 
   // Stats computation
   const total = audioFiles.length
@@ -248,15 +281,72 @@ export default function Dashboard() {
                   </svg>
                   Audio Files
                 </h2>
-                <span className="text-xs text-slate-400">{audioFiles.length} files</span>
+                <span className="text-xs text-slate-400">
+                  {filteredFiles.length}{hasActiveFilters ? ` of ${audioFiles.length}` : ''} files
+                </span>
               </div>
 
-              {audioFiles.length === 0 ? (
+              {/* Filter bar */}
+              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex flex-wrap gap-3 items-end">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-500">Status</label>
+                  <select
+                    value={filterStatus}
+                    onChange={e => setFilterStatus(e.target.value)}
+                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  >
+                    <option value="">All</option>
+                    <option value="available">Available</option>
+                    <option value="my_draft">My Draft</option>
+                    <option value="in_review">In Review</option>
+                    <option value="reviewed">Reviewed</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-500">Reviewer</label>
+                  <select
+                    value={filterReviewer}
+                    onChange={e => setFilterReviewer(e.target.value)}
+                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  >
+                    <option value="">All</option>
+                    {reviewers.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-500">Reviewed from</label>
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={e => setFilterDateFrom(e.target.value)}
+                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-500">Reviewed to</label>
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={e => setFilterDateTo(e.target.value)}
+                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  />
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    onClick={() => { setFilterStatus(''); setFilterReviewer(''); setFilterDateFrom(''); setFilterDateTo('') }}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium self-end pb-1.5"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+
+              {filteredFiles.length === 0 ? (
                 <div className="py-16 text-center text-slate-400">
                   <svg className="w-10 h-10 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                   </svg>
-                  <p className="text-sm">No audio files found</p>
+                  <p className="text-sm">{hasActiveFilters ? 'No files match the current filters' : 'No audio files found'}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -270,7 +360,7 @@ export default function Dashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {audioFiles.map(file => {
+                      {filteredFiles.map(file => {
                         const status = getFileStatus(file)
                         const reviewerName = file.claimed_by_username || file.claimed_by || ''
                         const isClaiming = claimingId === file.audio_file_id

@@ -174,7 +174,11 @@ async function getSessionState() {
 
   const completed = reviews
     .filter((r) => r.status === 'complete')
-    .map((r) => r.unique_id_calc);
+    .map((r) => ({
+      unique_id_calc: r.unique_id_calc,
+      reviewer: r.reviewer,
+      review_timestamp: r.review_timestamp,
+    }));
 
   const claimed = claims
     .filter((c) => c.status === 'claimed')
