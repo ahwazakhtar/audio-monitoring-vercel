@@ -212,6 +212,14 @@ async function getCompletedReviews() {
 }
 
 /**
+ * Returns the complete review row for a given audio_filename, or null if not found.
+ */
+async function getReviewByFilename(audio_filename) {
+  const all = await getCompletedReviews();
+  return all.find((r) => r.audio_filename === audio_filename) || null;
+}
+
+/**
  * Appends a new row to the Reviews tab.
  */
 async function appendReview(reviewData) {
@@ -324,6 +332,7 @@ module.exports = {
   ensureSheetSetup,
   getSessionState,
   getCompletedReviews,
+  getReviewByFilename,
   appendReview,
   upsertClaim,
   deleteClaim,

@@ -32,6 +32,9 @@ router.get('/files', authMiddleware, async (req, res) => {
       }
     }
 
+    const completedSet = new Set(sessionState.completed || []);
+    const claimedSet = new Set((sessionState.claimed || []).map((c) => c.unique_id_calc));
+
     // Build a lookup: audio_filename_segment -> unique_id_calc
     // (segment is the "AA_<UUID>_enumerator.m4a" part)
     const segmentMap = new Map();
@@ -59,6 +62,13 @@ router.get('/files', authMiddleware, async (req, res) => {
 
       const obs = unique_id_calc ? obsMap.get(unique_id_calc) : null;
 
+      const status = unique_id_calc
+        ? completedSet.has(unique_id_calc) ? 'complete'
+          : draftMap.has(unique_id_calc) ? 'draft'
+          : claimedSet.has(unique_id_calc) ? 'claimed'
+          : 'available'
+        : 'available';
+
       return {
         audio_file_id: file.fileId,
         audio_filename: file.filename,
@@ -67,6 +77,7 @@ router.get('/files', authMiddleware, async (req, res) => {
         enumerator_name: obs ? obs.enumerator_name : null,
         mimeType: file.mimeType,
         size: file.size,
+        status,
         draft_data: unique_id_calc ? (draftMap.get(unique_id_calc) || null) : null,
       };
     });

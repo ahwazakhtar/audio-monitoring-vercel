@@ -67,6 +67,10 @@ export function getMyReviews() {
   return api.get('/api/reviews/mine')
 }
 
+export function getReviewByFile(audio_filename) {
+  return api.get(`/api/reviews/by-file/${encodeURIComponent(audio_filename)}`)
+}
+
 export function getAnalytics() {
   return api.get('/api/analytics')
 }

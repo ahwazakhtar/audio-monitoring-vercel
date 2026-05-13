@@ -4,7 +4,7 @@ import NavBar from '../components/NavBar.jsx'
 import AudioPlayer from '../components/AudioPlayer.jsx'
 import ObservationPanel from '../components/ObservationPanel.jsx'
 import SectionVerifier from '../components/SectionVerifier.jsx'
-import { getObservation, getAudioFiles, saveReview, releaseClaim, audioStreamUrl } from '../api/client.js'
+import { getObservation, getAudioFiles, saveReview, releaseClaim, audioStreamUrl, getReviewByFile } from '../api/client.js'
 
 // ─── Section configuration ──────────────────────────────────────────────────
 // 18 sections grouped by subject. Customize item lists to match your survey variables.
@@ -173,6 +173,7 @@ export default function ReviewScreen() {
   const [audioFile, setAudioFile] = useState(null)
   const [submitting, setSaving] = useState(false)
   const [submitDone, setSubmitDone] = useState(false)
+  const [isCompleted, setIsCompleted] = useState(false)
 
   // Which sections the officer wants to verify — all on by default
   const [selectedSections, setSelectedSections] = useState(SECTION_KEYS)
@@ -207,13 +208,25 @@ export default function ReviewScreen() {
         setObservation(obsRes.data)
       }
 
-      // Restore draft if present; otherwise all sections stay selected
+      // Restore draft if present; otherwise check for a completed review
       if (file.draft_data) {
         const draft = typeof file.draft_data === 'string' ? JSON.parse(file.draft_data) : file.draft_data
         if (draft.sections_reviewed?.length) setSelectedSections(draft.sections_reviewed)
         if (draft.verdicts) setVerdicts(draft.verdicts)
         if (draft.section_comments) setSectionComments(draft.section_comments)
         if (draft.overall_comment) setOverallComment(draft.overall_comment)
+      } else if (file.status === 'complete') {
+        try {
+          const reviewRes = await getReviewByFile(file.audio_filename)
+          const review = reviewRes.data
+          if (review.sections_reviewed?.length) setSelectedSections(review.sections_reviewed)
+          if (review.verdicts) setVerdicts(review.verdicts)
+          if (review.section_comments) setSectionComments(review.section_comments)
+          if (review.overall_comment) setOverallComment(review.overall_comment)
+        } catch {
+          // review data unavailable — form stays empty but still read-only
+        }
+        setIsCompleted(true)
       }
     } catch (err) {
       if (err.response?.status !== 401) {
@@ -409,6 +422,11 @@ export default function ReviewScreen() {
                 {audioFile?.unique_id_calc || 'No matched observation'} · {selectedSections.length} sections selected
               </p>
             </div>
+            {isCompleted && (
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                Submitted
+              </span>
+            )}
             <div className="flex items-center gap-3">
               {compliancePct !== null && (
                 <div className={`px-3 py-1 rounded-full text-sm font-bold border ${
@@ -461,7 +479,9 @@ export default function ReviewScreen() {
                           return (
                             <label
                               key={sectionKey}
-                              className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-xs ${
+                              className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${
+                                isCompleted ? 'cursor-default' : 'cursor-pointer transition-colors'
+                              } ${
                                 isSelected
                                   ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
                                   : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
@@ -470,7 +490,8 @@ export default function ReviewScreen() {
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => toggleSection(sectionKey)}
+                                onChange={() => !isCompleted && toggleSection(sectionKey)}
+                                disabled={isCompleted}
                                 className="mt-0.5 rounded accent-indigo-600"
                               />
                               <div className="min-w-0">
@@ -508,6 +529,7 @@ export default function ReviewScreen() {
                   onVerdictsChange={(v) => handleVerdictsChange(sectionKey, v)}
                   comment={sectionComments[sectionKey] || ''}
                   onCommentChange={(c) => handleSectionCommentChange(sectionKey, c)}
+                  readOnly={isCompleted}
                 />
               ))
             )}
@@ -519,10 +541,11 @@ export default function ReviewScreen() {
               </label>
               <textarea
                 value={overallComment}
-                onChange={e => setOverallComment(e.target.value)}
+                onChange={e => !isCompleted && setOverallComment(e.target.value)}
+                readOnly={isCompleted}
                 rows={3}
                 placeholder="Any overall notes, concerns, or observations about this recording and survey data..."
-                className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                className={`w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none ${isCompleted ? 'bg-slate-50 text-slate-600' : ''}`}
               />
             </div>
 
@@ -536,34 +559,43 @@ export default function ReviewScreen() {
               {selectedSections.length} section{selectedSections.length !== 1 ? 's' : ''} selected
               {compliancePct !== null && ` · ${compliancePct}% compliance`}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSaveDraft}
-                disabled={submitting}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 text-slate-700 disabled:text-slate-400 border border-slate-300 text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
-              >
-                {submitting ? (
-                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : null}
-                Save Draft
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || selectedSections.length === 0}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2"
-              >
-                {submitting ? (
-                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : null}
-                Submit Review
-              </button>
-            </div>
+            {isCompleted ? (
+              <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Review already submitted
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={submitting}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 text-slate-700 disabled:text-slate-400 border border-slate-300 text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {submitting ? (
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : null}
+                  Save Draft
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting || selectedSections.length === 0}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {submitting ? (
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : null}
+                  Submit Review
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

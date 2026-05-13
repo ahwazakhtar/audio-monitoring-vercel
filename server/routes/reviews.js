@@ -10,6 +10,7 @@ const {
   deleteClaim,
   getClaim,
   getCompletedReviews,
+  getReviewByFilename,
 } = require('../services/googleSheets');
 
 const router = express.Router();
@@ -280,6 +281,39 @@ router.post('/reviews', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('POST /reviews error:', err);
     return res.status(500).json({ error: err.message || 'Failed to save review' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/reviews/by-file/:audio_filename
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/reviews/by-file/:audio_filename
+ * Auth required.
+ * Returns the completed review row for a specific audio file, with verdicts
+ * and comments parsed back into objects for form restoration.
+ */
+router.get('/reviews/by-file/:audio_filename', authMiddleware, async (req, res) => {
+  try {
+    const { audio_filename } = req.params;
+    const review = await getReviewByFilename(audio_filename);
+    if (!review) {
+      return res.status(404).json({ error: 'No completed review found for this file' });
+    }
+    return res.json({
+      ...review,
+      sections_reviewed: review.sections_reviewed
+        ? review.sections_reviewed.split(',').filter(Boolean)
+        : [],
+      verdicts: safeParseJSON(review.verdicts_json, {}),
+      section_comments: safeParseJSON(review.comments_json, {}),
+      flagged: review.flagged === 'true',
+      overall_compliance_pct: parseFloat(review.overall_compliance_pct) || 0,
+    });
+  } catch (err) {
+    console.error('GET /reviews/by-file error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to load review' });
   }
 });
 
