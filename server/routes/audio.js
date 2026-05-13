@@ -4,6 +4,7 @@ const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const { listAudioFiles, streamFile } = require('../services/googleDrive');
 const { getAllObservations, extractAudioFilenameSegment } = require('../services/csvLoader');
+const { getSessionState } = require('../services/googleSheets');
 
 const router = express.Router();
 
@@ -17,10 +18,19 @@ const router = express.Router();
  */
 router.get('/files', authMiddleware, async (req, res) => {
   try {
-    const [driveFiles, observations] = await Promise.all([
+    const [driveFiles, observations, sessionState] = await Promise.all([
       listAudioFiles(),
       Promise.resolve(getAllObservations()),
+      getSessionState(),
     ]);
+
+    // Build draft_data lookup keyed by unique_id_calc
+    const draftMap = new Map();
+    for (const draft of sessionState.drafts || []) {
+      if (draft.unique_id_calc) {
+        draftMap.set(draft.unique_id_calc, draft.draft_data);
+      }
+    }
 
     // Build a lookup: audio_filename_segment -> unique_id_calc
     // (segment is the "AA_<UUID>_enumerator.m4a" part)
@@ -57,6 +67,7 @@ router.get('/files', authMiddleware, async (req, res) => {
         enumerator_name: obs ? obs.enumerator_name : null,
         mimeType: file.mimeType,
         size: file.size,
+        draft_data: unique_id_calc ? (draftMap.get(unique_id_calc) || null) : null,
       };
     });
 
