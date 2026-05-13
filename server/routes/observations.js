@@ -11,9 +11,9 @@ const router = express.Router();
  * Auth required.
  * Returns an array of observation summary objects.
  */
-router.get('/', authMiddleware, (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    const observations = getAllObservations();
+    const observations = await getAllObservations();
     return res.json(observations);
   } catch (err) {
     console.error('GET /observations error:', err);
@@ -26,10 +26,10 @@ router.get('/', authMiddleware, (req, res) => {
  * Auth required.
  * Returns the full CSV row for the given unique_id_calc.
  */
-router.get('/:id', authMiddleware, (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const observation = getObservation(id);
+    const observation = await getObservation(id);
 
     if (!observation) {
       return res.status(404).json({ error: `Observation not found: ${id}` });

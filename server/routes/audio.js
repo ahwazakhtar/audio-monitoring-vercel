@@ -20,7 +20,7 @@ router.get('/files', authMiddleware, async (req, res) => {
   try {
     const [driveFiles, observations, sessionState] = await Promise.all([
       listAudioFiles(),
-      Promise.resolve(getAllObservations()),
+      getAllObservations(),
       getSessionState(),
     ]);
 
