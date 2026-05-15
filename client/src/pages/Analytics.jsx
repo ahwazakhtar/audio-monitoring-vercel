@@ -101,6 +101,7 @@ export default function Analytics() {
 
   const byEnumerator = data?.by_enumerator || []
   const bySection = data?.by_section || []
+  const byReviewer = data?.by_reviewer || []
   const flagged = data?.flagged || []
   const totalReviewed = data?.total_reviewed ?? 0
   const avgCompliance = data?.avg_compliance ?? null
@@ -252,6 +253,50 @@ export default function Analytics() {
               </ResponsiveContainer>
             )}
           </div>
+        </div>
+
+        {/* Reviews by reviewer */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+          <div className="px-5 py-4 border-b border-slate-200">
+            <h2 className="font-semibold text-slate-800">Reviews by Reviewer</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Number of submissions per officer</p>
+          </div>
+          {byReviewer.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-400">No data available</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Reviewer</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Reviews</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Avg Compliance</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Flagged</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {byReviewer.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-sm font-medium text-slate-700">{row.reviewer}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 font-semibold">{row.reviewed}</td>
+                      <td className="px-4 py-3 min-w-[140px]">
+                        <ComplianceBar value={row.avg_compliance} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.flagged > 0 ? (
+                          <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                            {row.flagged}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Flagged observations table */}

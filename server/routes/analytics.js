@@ -148,6 +148,34 @@ router.get('/', authMiddleware, async (req, res) => {
       };
     });
 
+    // ---------- By reviewer ----------
+    const reviewerMap = new Map();
+    for (const review of reviews) {
+      const name = review.reviewer || 'Unknown';
+      if (!reviewerMap.has(name)) {
+        reviewerMap.set(name, { reviewed: 0, compliance: [], flagged: 0 });
+      }
+      const entry = reviewerMap.get(name);
+      entry.reviewed++;
+      const pct = parseFloat(review.overall_compliance_pct);
+      if (!isNaN(pct)) entry.compliance.push(pct);
+      if (review.flagged === 'true') entry.flagged++;
+    }
+
+    const by_reviewer = Array.from(reviewerMap.entries())
+      .map(([reviewer, data]) => ({
+        reviewer,
+        reviewed: data.reviewed,
+        avg_compliance:
+          data.compliance.length > 0
+            ? Math.round(
+                (data.compliance.reduce((s, v) => s + v, 0) / data.compliance.length) * 10
+              ) / 10
+            : 0,
+        flagged: data.flagged,
+      }))
+      .sort((a, b) => b.reviewed - a.reviewed);
+
     // ---------- Flagged observations ----------
     const flagged_observations = reviews
       .filter((r) => r.flagged === 'true')
@@ -175,6 +203,7 @@ router.get('/', authMiddleware, async (req, res) => {
       by_enumerator,
       by_school,
       by_section,
+      by_reviewer,
       flagged_observations,
     });
   } catch (err) {
